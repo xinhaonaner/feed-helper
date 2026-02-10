@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XML 转 CSV</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; }
+    form { display: flex; flex-direction: column; gap: 1rem; }
+    label { font-weight: 500; }
+    input[type="file"], input[type="text"] { padding: 0.5rem; }
+    button { padding: 0.6rem 1rem; background: #333; color: #fff; border: none; cursor: pointer; font-size: 1rem; }
+    button:hover { background: #555; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .hint { font-size: 0.875rem; color: #666; }
+    .status { margin-top: 1rem; padding: 0.75rem; background: #f0f0f0; border-radius: 4px; display: none; }
+    .status.visible { display: block; }
+  </style>
+</head>
+<body>
+  <h1>XML 转 CSV</h1>
+  <p class="hint">上传 XML 文件，按“行元素”拆成多行，直接子元素作为列。支持大文件流式转换。</p>
+  <form id="form" action="/convert" method="post" enctype="multipart/form-data">
+    <div>
+      <label for="xml">选择 XML 文件</label>
+      <input type="file" id="xml" name="xml" accept=".xml,application/xml,text/xml" required>
+    </div>
+    <div>
+      <label for="rowTag">行元素 tag（每个该元素对应 CSV 一行）</label>
+      <input type="text" id="rowTag" name="rowTag" value="item" placeholder="例如 item, record, row">
+      <p class="hint">默认 item，常见于 RSS/Atom；若 XML 用其他标签包裹每行，请填写。</p>
+    </div>
+    <button type="submit" id="submitBtn">转换并下载 CSV</button>
+  </form>
+  <p id="status" class="status" aria-live="polite"></p>
+  <script>
+    (function () {
+      var form = document.getElementById('form');
+      var submitBtn = document.getElementById('submitBtn');
+      var status = document.getElementById('status');
+      form.addEventListener('submit', function () {
+        submitBtn.disabled = true;
+        status.textContent = '转换中，请勿关闭或刷新页面… 大文件可能需要较长时间，下载完成后可刷新页面继续使用。';
+        status.className = 'status visible';
+      });
+    })();
+  </script>
+</body>
+</html>

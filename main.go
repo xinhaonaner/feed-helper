@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"flag"
+	"io"
 	"log"
 	"net/http"
 	"os/exec"
@@ -11,6 +12,31 @@ import (
 
 	"feed-helper/internal/xml2csv"
 )
+
+// utf8BOM 让 Excel 等 Windows 程序正确识别 UTF-8，避免乱码和错位。
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
+// crlfWriter 将 \n 转为 \r\n，便于 Windows 下 Excel 正确识别换行。
+type crlfWriter struct{ w io.Writer }
+
+func (c *crlfWriter) Write(p []byte) (n int, err error) {
+	start := 0
+	for i := 0; i < len(p); i++ {
+		if p[i] == '\n' {
+			if _, err = c.w.Write(p[start:i]); err != nil {
+				return len(p), err
+			}
+			if _, err = c.w.Write([]byte{'\r', '\n'}); err != nil {
+				return len(p), err
+			}
+			start = i + 1
+		}
+	}
+	if start < len(p) {
+		_, err = c.w.Write(p[start:])
+	}
+	return len(p), err
+}
 
 //go:embed static
 var staticFS embed.FS
@@ -71,8 +97,14 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="result.csv"`)
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 
+	// Windows 兼容：先写 UTF-8 BOM，Excel 才能正确识别编码；再用 CRLF 换行避免错位。
+	if _, err := w.Write(utf8BOM); err != nil {
+		log.Printf("write BOM: %v", err)
+		return
+	}
+	dst := &crlfWriter{w: w}
 	opts := []xml2csv.Option{xml2csv.RowTag(rowTag)}
-	if err := xml2csv.Convert(file, w, opts...); err != nil {
+	if err := xml2csv.Convert(file, dst, opts...); err != nil {
 		log.Printf("convert error: %v", err)
 		// 不调用 http.Error：可能已向 w 写过数据（如 broken pipe 时客户端已断开），
 		// 再写状态码会触发 superfluous response.WriteHeader。

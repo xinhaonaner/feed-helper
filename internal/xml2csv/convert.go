@@ -5,14 +5,26 @@ import (
 	"encoding/xml"
 	"io"
 	"strings"
+
+	"golang.org/x/net/html/charset"
 )
 
 // Convert reads XML from src and writes CSV to dst. It uses streaming:
 // each "row" element (e.g. <item>) is parsed and written as one CSV row.
 // Column names are inferred from the first row's direct child element names.
+// If the XML declares a non-UTF-8 encoding (e.g. ISO-8859-1, Windows-1252), it is
+// converted to UTF-8 so that characters like German umlauts (ö, ü) display correctly.
 func Convert(src io.Reader, dst io.Writer, opts ...Option) error {
 	cfg := applyOptions(opts)
 	dec := xml.NewDecoder(src)
+	dec.CharsetReader = func(label string, input io.Reader) (io.Reader, error) {
+		r, err := charset.NewReaderLabel(label, input)
+		if err != nil {
+			// 未知编码时按 UTF-8 透传，避免解析中断
+			return input, nil
+		}
+		return r, nil
+	}
 	cw := csv.NewWriter(dst)
 	defer cw.Flush()
 
